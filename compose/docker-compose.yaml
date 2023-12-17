@@ -1,0 +1,209 @@
+networks:
+  news-posts:
+    driver: bridge
+
+volumes:
+  mysql-read-data:
+    driver: local
+  mysql-write-data:
+    driver: local
+  redisc-data1:
+    driver: local
+  redisc-data2:
+    driver: local
+  redisc-data3:
+    driver: local
+  redisc-data4:
+    driver: local
+  redisc-data5:
+    driver: local
+  redisc-data6:
+    driver: local
+  etcd1_data:
+    driver: local
+  etcd2_data:
+    driver: local
+  etcd3_data:
+    driver: local
+
+services:
+  # redis
+  redis1:
+    restart: always
+    image: redis
+    container_name: redis1
+    command: redis-server /etc/redis/cluster-conf.conf
+    volumes:
+      - redisc-data1:/data
+      - ./redis-config/cluster-conf1.conf:/etc/redis/cluster-conf.conf
+    ports:
+      - "6381:6381"
+      - "16381:16381"
+    networks:
+      - news-posts
+
+  redis2:
+    restart: always
+    image: redis
+    container_name: redis2
+    command: redis-server /etc/redis/cluster-conf.conf
+    volumes:
+      - redisc-data2:/data
+      - ./redis-config/cluster-conf2.conf:/etc/redis/cluster-conf.conf
+    ports:
+      - "6382:6382"
+      - "16382:16382"
+    networks:
+      - news-posts
+
+  redis3:
+    restart: always
+    image: redis
+    container_name: redis3
+    command: redis-server /etc/redis/cluster-conf.conf
+    volumes:
+      - redisc-data3:/data
+      - ./redis-config/cluster-conf3.conf:/etc/redis/cluster-conf.conf
+    ports:
+      - "6383:6383"
+      - "16383:16383"
+    networks:
+      - news-posts
+
+  redis4:
+    restart: always
+    image: redis
+    container_name: redis4
+    command: redis-server /etc/redis/cluster-conf.conf
+    volumes:
+      - redisc-data4:/data
+      - ./redis-config/cluster-conf4.conf:/etc/redis/cluster-conf.conf
+    ports:
+      - "6384:6384"
+      - "16384:16384"
+    networks:
+      - news-posts
+
+  redis5:
+    restart: always
+    image: redis
+    container_name: redis5
+    command: redis-server /etc/redis/cluster-conf.conf
+    volumes:
+      - redisc-data5:/data
+      - ./redis-config/cluster-conf5.conf:/etc/redis/cluster-conf.conf
+    ports:
+      - "6385:6385"
+      - "16385:16385"
+    networks:
+      - news-posts
+
+  redis6:
+    restart: always
+    image: redis
+    container_name: redis6
+    command: redis-server /etc/redis/cluster-conf.conf
+    volumes:
+      - redisc-data6:/data
+      - ./redis-config/cluster-conf6.conf:/etc/redis/cluster-conf.conf
+    ports:
+      - "6386:6386"
+      - "16386:16386"
+    networks:
+      - news-posts
+    # mysql
+  mysql-write:
+    image: mysql
+    container_name: mysql-write
+    restart: always
+    volumes:
+      - mysql-write-data:/var/lib/mysql
+      - ./mysql-w-config:/etc/mysql/conf.d
+    networks:
+      - news-posts
+    ports:
+      - "33061:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+
+  mysql-read:
+    image: mysql
+    container_name: mysql-read
+    restart: always
+    volumes:
+      - mysql-read-data:/var/lib/mysql
+      - ./mysql-r-config:/etc/mysql/conf.d
+    networks:
+      - news-posts
+    ports:
+      - "33062:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456
+    # etcd
+  etcd1:
+    image: bitnami/etcd:latest # 镜像
+    container_name: etcd1 # 容器名 --name
+    #restart: always # 总是重启
+    networks:
+      - news-posts # 使用的网络 --network
+    ports:
+      # 端口映射 -p
+      - "23791:2379"
+      - "23801:2380"
+    environment:
+      # 环境变量 --env
+      - ALLOW_NONE_AUTHENTICATION=yes # 允许不用密码登录
+      - ETCD_NAME=etcd1 # etcd 的名字
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd1:2380 # 列出这个成员的伙伴 URL 以便通告给集群的其他成员
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380 # 用于监听伙伴通讯的URL列表
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379 # 用于监听客户端通讯的URL列表
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd1:2379 # 列出这个成员的客户端URL，通告给集群中的其他成员
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-c # 在启动期间用于 etcd 集群的初始化集群记号
+      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new # 初始化集群状态
+    volumes:
+      - etcd1_data:/bitnami/etcd # 挂载的数据卷
+
+  etcd2:
+    image: bitnami/etcd:latest
+    container_name: etcd2
+    #restart: always
+    networks:
+      - news-posts
+    ports:
+      - "23792:2379"
+      - "23802:2380"
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd2
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd2:2380
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd2:2379
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-c
+      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+    volumes:
+      - etcd2_data:/bitnami/etcd
+
+  etcd3:
+    image: bitnami/etcd:latest
+    container_name: etcd3
+    #restart: always
+    networks:
+      - news-posts
+    ports:
+      - "23793:2379"
+      - "23803:2380"
+    environment:
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_NAME=etcd3
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd3:2380
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd3:2379
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-c
+      - ETCD_INITIAL_CLUSTER=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+    volumes:
+      - etcd3_data:/bitnami/etcd
