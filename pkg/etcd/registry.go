@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"sync"
 	"time"
 )
 
@@ -18,21 +17,20 @@ type stringWrapper struct {
 }
 
 type Register struct {
-	mu *sync.Mutex
-
 	key       stringWrapper
 	value     stringWrapper
 	leaseId   clientv3.LeaseID
 	kc        <-chan *clientv3.LeaseKeepAliveResponse
 	closeChan chan struct{}
+	closed    bool
+	cli       *clientv3.Client
 }
 
 func (r *Register) Close() error {
-	if r.closeChan != nil {
+	if r.closed {
 		return errors.New("register has closed")
 	}
-	r.closeChan <- struct{}{}
-	return nil
+	return r.close()
 }
 
 func (r *Register) close() error {
@@ -47,10 +45,12 @@ func (r *Register) close() error {
 	}
 	// set empty
 	r.kc = nil
-	r.closeChan = nil
+	r.closed = true
+
 	return nil
 }
 
+// RegistryNewService e.g. RegistryNewService(name,addr)
 func RegistryNewService(key, value string) (*Register, error) {
 	var err error
 	//
@@ -64,6 +64,7 @@ func RegistryNewService(key, value string) (*Register, error) {
 }
 
 // registryNewService put 相关操作
+// 包含了 keepAlive lease put 实现自动化的处理服务注册
 func registryNewService(key, value string) (*Register, error) {
 	conn := getConn()
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Duration(serviceExpireTime)*time.Second)
@@ -80,14 +81,13 @@ func registryNewService(key, value string) (*Register, error) {
 	}
 
 	res := &Register{
-		mu:        new(sync.Mutex),
-		key:       genKey(key),
-		value:     genValue(value),
-		leaseId:   leases.ID,
-		kc:        kc,
-		closeChan: make(chan struct{}),
+		key:     genKey(key),
+		value:   genValue(value),
+		leaseId: leases.ID,
+		kc:      kc,
+		closed:  false,
+		cli:     getConn(),
 	}
-	//TODO put
 	_, err = conn.Put(
 		context.Background(),
 		res.key.processed,
@@ -111,12 +111,6 @@ func keepAlive(r *Register, retryCount int) {
 	timer := time.NewTimer(timeoutDuration)
 	for {
 		select {
-		case <-r.closeChan:
-			err := r.close()
-			//TODO logger
-			panic(err)
-			return
-
 		case <-r.kc:
 			timer.Reset(timeoutDuration)
 			continue
