@@ -2,7 +2,10 @@ module github.com/woshikedayaa/news-poster
 
 go 1.21.0
 
+require github.com/cespare/xxhash/v2 v2.2.0
+
 require (
+	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/coreos/etcd v3.3.27+incompatible // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf // indirect

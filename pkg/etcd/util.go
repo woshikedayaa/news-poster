@@ -3,6 +3,7 @@ package etcd
 import (
 	"bufio"
 	"errors"
+	"google.golang.org/grpc/resolver"
 	"io"
 	"os"
 	"path/filepath"
@@ -58,4 +59,13 @@ func parseEndpoints() []string {
 	}
 	//安全退出
 	return res
+}
+
+func serviceInAddresses(addresses []resolver.Address, target string) bool {
+	for _, address := range addresses {
+		if address.Addr == target {
+			return true
+		}
+	}
+	return false
 }
