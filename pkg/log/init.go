@@ -20,11 +20,11 @@ var (
 )
 
 func New() Logger {
-	return NewZapLoggerWrapper()
+	return newZapLoggerWrapper()
 }
 
 func NewSugared() SugaredLogger {
-	return NewSugaredZapLoggerWrapper()
+	return newSugaredZapLoggerWrapper()
 }
 
 func InitLog(serviceName string) {

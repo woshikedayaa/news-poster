@@ -21,6 +21,10 @@ type ZapLoggerWrapper struct {
 	self *zap.Logger
 }
 
+func newZapLoggerWrapper() *ZapLoggerWrapper {
+	return &ZapLoggerWrapper{self: globalLogger}
+}
+
 // BasicLogger
 
 func (z *ZapLoggerWrapper) Debug(msg string, fields ...zap.Field) {
@@ -32,24 +36,21 @@ func (z *ZapLoggerWrapper) Info(msg string, fields ...zap.Field) {
 }
 
 func (z *ZapLoggerWrapper) Warn(msg string, fields ...zap.Field) {
-	//TODO 上传监控
 	z.self.Warn(msg, fields...)
 }
 
 func (z *ZapLoggerWrapper) Error(msg string, fields ...zap.Field) {
-	//TODO 上传监控
 	z.self.Error(msg, fields...)
 }
 
 func (z *ZapLoggerWrapper) Fatal(msg string, fields ...zap.Field) {
-	//TODO 上传监控
 	z.self.Fatal(msg, fields...)
 }
 
+// Sync 调用自身的sync方法同时上传error和warn到监控
 func (z *ZapLoggerWrapper) Sync() error {
-	return z.self.Sync()
-}
-
-func NewZapLoggerWrapper() *ZapLoggerWrapper {
-	return &ZapLoggerWrapper{self: globalLogger}
+	//TODO 在sync的时候上传监控
+	var err error
+	err = z.self.Sync()
+	return err
 }

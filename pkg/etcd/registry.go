@@ -5,6 +5,7 @@ import (
 	"errors"
 	"github.com/woshikedayaa/news-poster/pkg/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 	"time"
 )
 
@@ -25,7 +26,7 @@ type Register struct {
 	closeChan chan struct{}
 	closed    bool
 	cli       *clientv3.Client
-	logger    *log.BasicLogger
+	logger    log.Logger
 }
 
 func (r *Register) Close() error {
@@ -89,6 +90,7 @@ func registryNewService(key, value string) (*Register, error) {
 		kc:      kc,
 		closed:  false,
 		cli:     getConn(),
+		logger:  log.New(),
 	}
 	_, err = conn.Put(
 		context.Background(),
@@ -119,7 +121,7 @@ func keepAlive(r *Register, retryCount int) {
 
 		//超时 尝试重连
 		case <-timer.C:
-			//TODO logger
+			r.logger.Warn("keep-alive timeout ,try connecting...", zap.Int("retryCount", retryCount))
 			register, err := registryNewService(r.key.raw, r.value.raw)
 			if err != nil {
 				return

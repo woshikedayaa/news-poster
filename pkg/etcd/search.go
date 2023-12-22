@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/woshikedayaa/news-poster/pkg/log"
 	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/resolver"
 	"slices"
 	"time"
@@ -26,6 +28,8 @@ type Resolver struct {
 
 	closeCh chan struct{}
 	key     string
+
+	logger log.Logger
 }
 
 func (r *Resolver) ResolveNow(options resolver.ResolveNowOptions) {
@@ -99,6 +103,7 @@ func (r *Resolver) sync() error {
 			// 写于 2023-12-21 19:51
 			// 这个方案不好使 需要在初始化客户端连接的时候配置负载均衡
 			// 如果使用这个方案 每次配置都要解析一个json 降低效率
+			// TODO 配置客户端的时候配置负载均衡
 		},
 	)
 }
@@ -112,13 +117,14 @@ func (r *Resolver) watch() {
 			if ok {
 				err := r.handleEvent(response.Events)
 				if err != nil {
-					//TODO logger
+					r.logger.Error("error when handleEvents", zap.Error(err))
 				}
 			}
 		case <-ticker.C:
+			r.logger.Warn("watch timeout,too long have no response", zap.String("key", r.key))
 			err := r.sync()
 			if err != nil {
-				//TODO logger
+				r.logger.Error("error when handleEvents", zap.Error(err))
 			}
 		}
 	}

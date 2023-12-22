@@ -16,31 +16,42 @@ type SugaredZapLoggerWrapper struct {
 	sugar *zap.SugaredLogger
 }
 
-func NewSugaredZapLoggerWrapper() SugaredLogger {
+func newSugaredZapLoggerWrapper() SugaredLogger {
 	return &SugaredZapLoggerWrapper{
-		ZapLoggerWrapper: NewZapLoggerWrapper(),
+		ZapLoggerWrapper: newZapLoggerWrapper(),
 		sugar:            globalSugaredLogger,
 	}
 }
 
 // SugaredLogger
 
-func (z *ZapLoggerWrapper) DebugF(f string, args ...interface{}) {
-	z.self.Sugar().Debugf(f, args...)
+func (z *SugaredZapLoggerWrapper) DebugF(f string, args ...interface{}) {
+	z.sugar.Debugf(f, args...)
 }
 
-func (z *ZapLoggerWrapper) InfoF(f string, args ...interface{}) {
-	z.self.Sugar().Infof(f, args...)
+func (z *SugaredZapLoggerWrapper) InfoF(f string, args ...interface{}) {
+	z.sugar.Infof(f, args...)
 }
 
-func (z *ZapLoggerWrapper) WarnF(f string, args ...interface{}) {
-	z.self.Sugar().Warnf(f, args...)
+func (z *SugaredZapLoggerWrapper) WarnF(f string, args ...interface{}) {
+	z.sugar.Warnf(f, args...)
 }
 
-func (z *ZapLoggerWrapper) ErrorF(f string, args ...interface{}) {
-	z.self.Sugar().Errorf(f, args...)
+func (z *SugaredZapLoggerWrapper) ErrorF(f string, args ...interface{}) {
+	z.sugar.Errorf(f, args...)
 }
 
-func (z *ZapLoggerWrapper) FatalF(f string, args ...interface{}) {
-	z.self.Sugar().Fatalf(f, args...)
+func (z *SugaredZapLoggerWrapper) FatalF(f string, args ...interface{}) {
+	z.sugar.Fatalf(f, args...)
+}
+
+func (z *SugaredZapLoggerWrapper) Sync() error {
+	var err error
+	err = z.sugar.Sync()
+	if err != nil {
+		return err
+	}
+	err = z.ZapLoggerWrapper.Sync()
+
+	return err
 }
