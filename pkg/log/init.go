@@ -9,17 +9,22 @@ import (
 )
 
 var (
-	globalLogger      *zap.Logger = nil
-	msgKey                        = "msg"
-	levelKey                      = "level"
-	timeKey                       = "ts"
-	callerKey                     = "caller"
-	stacktraceKey                 = "trace"
-	globalServiceName             = "unknown"
+	globalLogger        *zap.Logger        = nil
+	globalSugaredLogger *zap.SugaredLogger = nil
+	msgKey                                 = "msg"
+	levelKey                               = "level"
+	timeKey                                = "ts"
+	callerKey                              = "caller"
+	stacktraceKey                          = "trace"
+	globalServiceName                      = "unknown"
 )
 
-func New() *ZapLoggerWrapper {
+func New() Logger {
 	return NewZapLoggerWrapper()
+}
+
+func NewSugared() SugaredLogger {
+	return NewSugaredZapLoggerWrapper()
 }
 
 func InitLog(serviceName string) {
@@ -55,15 +60,17 @@ func InitLog(serviceName string) {
 
 	//write sync
 	logRolling := &lumberjack.Logger{
-		Filename:   "",
-		MaxSize:    0,
-		MaxAge:     0,
-		MaxBackups: 0,
-		LocalTime:  false,
-		Compress:   false,
+		Filename:   "rolling-log.log",
+		MaxSize:    50 * 1024 * 1024,
+		MaxAge:     30, // 30 days
+		MaxBackups: 30, // 30 (和MaxAge保持一致吧 大于MaxAge的也不会被保存下来)
+		LocalTime:  true,
+		Compress:   true,
 	}
+
 	// cast to buffed
 	buffedLoggWS := &zapcore.BufferedWriteSyncer{
+		// lumberjack and os.stdout
 		WS:            zapcore.NewMultiWriteSyncer(zapcore.AddSync(logRolling), zapcore.AddSync(os.Stdout)),
 		Size:          16 * 1024, // 16KB
 		FlushInterval: 3,         // 3s
@@ -78,4 +85,6 @@ func InitLog(serviceName string) {
 		zap.Fields(zap.String("caller", globalServiceName)),
 		zap.AddStacktrace(zapcore.DebugLevel),
 	)
+
+	globalSugaredLogger = globalLogger.Sugar()
 }
