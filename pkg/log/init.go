@@ -3,12 +3,15 @@ package log
 
 import (
 	"github.com/natefinch/lumberjack"
+	"github.com/woshikedayaa/news-poster/pkg/utils/futil"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"os"
+	"path/filepath"
 )
 
 var (
+	filename                               = filepath.Join(futil.GetRootDir(), "logs", "rolling-log.log")
 	globalLogger        *zap.Logger        = nil
 	globalSugaredLogger *zap.SugaredLogger = nil
 	msgKey                                 = "msg"
@@ -60,7 +63,7 @@ func InitLog(serviceName string) {
 
 	//write sync
 	logRolling := &lumberjack.Logger{
-		Filename:   "rolling-log.log",
+		Filename:   filename,
 		MaxSize:    50 * 1024 * 1024,
 		MaxAge:     30, // 30 days
 		MaxBackups: 30, // 30 (和MaxAge保持一致吧 大于MaxAge的也不会被保存下来)
@@ -87,4 +90,8 @@ func InitLog(serviceName string) {
 	)
 
 	globalSugaredLogger = globalLogger.Sugar()
+}
+
+func handleSyncError(logger Logger, err error) {
+	logger.Error("error when sync", zap.Error(err))
 }

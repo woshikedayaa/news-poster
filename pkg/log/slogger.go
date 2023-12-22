@@ -45,13 +45,9 @@ func (z *SugaredZapLoggerWrapper) FatalF(f string, args ...interface{}) {
 	z.sugar.Fatalf(f, args...)
 }
 
-func (z *SugaredZapLoggerWrapper) Sync() error {
+func (z *SugaredZapLoggerWrapper) Sync() {
 	var err error
 	err = z.sugar.Sync()
-	if err != nil {
-		return err
-	}
-	err = z.ZapLoggerWrapper.Sync()
-
-	return err
+	handleSyncError(z, err)
+	z.ZapLoggerWrapper.Sync()
 }

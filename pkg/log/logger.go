@@ -12,7 +12,7 @@ type BasicLogger interface {
 	Warn(msg string, fields ...zap.Field)
 	Error(msg string, fields ...zap.Field)
 	Fatal(msg string, fields ...zap.Field)
-	Sync() error
+	Sync()
 }
 
 type Logger BasicLogger
@@ -48,9 +48,21 @@ func (z *ZapLoggerWrapper) Fatal(msg string, fields ...zap.Field) {
 }
 
 // Sync 调用自身的sync方法同时上传error和warn到监控
-func (z *ZapLoggerWrapper) Sync() error {
+func (z *ZapLoggerWrapper) Sync() {
+	defer func() {
+		if r := recover(); r != nil {
+			e, ok := r.(error)
+			if !ok {
+				return
+			}
+			handleSyncError(z, e)
+		}
+	}()
+
 	//TODO 在sync的时候上传监控
 	var err error
 	err = z.self.Sync()
-	return err
+	if err != nil {
+		panic(err)
+	}
 }

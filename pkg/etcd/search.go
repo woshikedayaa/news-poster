@@ -142,7 +142,7 @@ func (r *Resolver) handleEvent(events []*clientv3.Event) error {
 				continue
 			}
 			r.addresses = append(r.addresses, resolver.Address{Addr: addr})
-
+			r.logger.Info("watch a new service added", zap.String("service", addr))
 		// 有服务被删除
 		case clientv3.EventTypeDelete:
 			if !serviceInAddresses(r.addresses, addr) {
@@ -156,6 +156,7 @@ func (r *Resolver) handleEvent(events []*clientv3.Event) error {
 				}
 				return false
 			})
+			r.logger.Info("watch a offline service deleted", zap.String("service", addr))
 
 			err = r.cc.UpdateState(
 				resolver.State{
