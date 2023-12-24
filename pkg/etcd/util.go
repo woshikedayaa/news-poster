@@ -52,7 +52,9 @@ func parseEndpoints() []string {
 			panic(err)
 		}
 		ed = strings.TrimSpace(ed)
-		res = append(res, ed)
+		if len(ed) != 0 {
+			res = append(res, ed)
+		}
 		if errors.Is(err, io.EOF) {
 			break
 		}

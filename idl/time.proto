@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+message TimeStamp{
+  int64 unix = 1;
+  // 可选的
+  // 如果想高精度就填
+  // 不想高精度就填0就行
+  int64 nano = 2;
+}
+
+// （创建，更新，删除）
+message TimeModel{
+  TimeStamp create_time = 1;
+  TimeStamp update_time = 2;
+  TimeStamp delete_time = 3;
+}

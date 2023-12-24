@@ -1,0 +1,42 @@
+syntax = "proto3";
+import 'time.proto';
+option go_package="./;user";
+
+
+
+service UserService{
+  rpc SimpleAuth(SimpleAuthRequest)returns (SimpleAuthResponse);
+  rpc GetUserInfoFull(GetUserInfoFullRequest)returns (GetUserInfoFullResponse);
+}
+
+message SimpleAuthRequest{
+  int64 userid = 1;
+  bool remember_me = 2;
+  string password = 3;
+  string captcha_id = 4;
+  string captcha_code = 5;
+}
+
+message SimpleAuthResponse{
+  string status = 1;
+  string token =2;
+  string name=3;
+  string error= 4;
+  TimeStamp ts=5;
+}
+
+message GetUserInfoFullRequest{
+  // 想查看全部信息必须自己登录
+  string user_token = 1;
+}
+
+message GetUserInfoFullResponse{
+  int64 userid = 1;
+  TimeModel ts = 2;
+}
+
+message GetUserInfoSimpleRequest{
+   int64 userid= 1;
+   TimeModel ts = 2;
+}
+

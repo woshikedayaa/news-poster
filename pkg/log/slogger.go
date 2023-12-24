@@ -46,6 +46,7 @@ func (z *SugaredZapLoggerWrapper) FatalF(f string, args ...interface{}) {
 }
 
 func (z *SugaredZapLoggerWrapper) Sync() {
+	//TODO 上传监控
 	var err error
 	err = z.sugar.Sync()
 	handleSyncError(z, err)

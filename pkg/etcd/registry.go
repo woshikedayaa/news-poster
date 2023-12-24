@@ -106,7 +106,6 @@ func registryNewService(key, value string) (*Register, error) {
 }
 
 func keepAlive(r *Register, retryCount int) {
-	var err error
 	// check
 	if retryCount > retryMax {
 		panic(errors.New("service retry has arrive retryMax -> panic"))
@@ -123,17 +122,13 @@ func keepAlive(r *Register, retryCount int) {
 		//超时 尝试重连
 		case <-timer.C:
 			r.logger.Warn("keep-alive timeout ,try connecting...", zap.Int("retryCount", retryCount))
-			err = r.logger.Sync()
-			if err != nil {
-				r.logger.Error("error when sync")
-				return
-			}
 			register, err := registryNewService(r.key.raw, r.value.raw)
 			if err != nil {
 				return
 			}
 			r = register
 			go keepAlive(register, retryCount+1)
+			r.logger.Sync()
 			return
 		}
 	}
