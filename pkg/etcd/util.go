@@ -31,11 +31,11 @@ func genValue(raw string) stringWrapper {
 // parseEndpoints 解析文件夹下的 endpoints.list
 // 这个文件通过每一行来写一个 etcd 客户端地址来解析
 // e.g.
-// *********************
+// ---------------
 // 127.0.0.1:23791
 // 127.0.0.1:23792
 // 127.0.0.1:23793
-// *********************
+// ---------------
 func parseEndpoints() []string {
 	dir, _ := os.Getwd()
 	list, err := os.Open(dir + string(filepath.Separator) + "endpoints.list")

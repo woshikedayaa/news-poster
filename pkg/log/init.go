@@ -23,20 +23,34 @@ var (
 )
 
 func New() Logger {
+	if globalLogger == nil || globalSugaredLogger == nil {
+		panic("before new,logger must be init!")
+	}
 	return newZapLoggerWrapper()
 }
 
 func NewSugared() SugaredLogger {
+	if globalLogger == nil || globalSugaredLogger == nil {
+		panic("before new,logger must be init!")
+	}
 	return newSugaredZapLoggerWrapper()
 }
 
-func InitLog(serviceName string) {
+func InitLog(serviceName string, devMode bool) {
 	if globalLogger != nil {
 		return
 	}
 
 	if len(serviceName) != 0 {
 		globalServiceName = serviceName
+	}
+
+	level := zapcore.DebugLevel
+
+	// enable proc mode
+	if !devMode {
+		stacktraceKey = ""
+		level = zapcore.InfoLevel
 	}
 
 	// encoder
@@ -59,7 +73,7 @@ func InitLog(serviceName string) {
 		ConsoleSeparator:    zapcore.OmitKey,
 	}
 
-	encoder := zapcore.NewConsoleEncoder(EncoderConfig)
+	encoder := zapcore.NewJSONEncoder(EncoderConfig)
 
 	//write sync
 	logRolling := &lumberjack.Logger{
@@ -80,12 +94,12 @@ func InitLog(serviceName string) {
 	}
 
 	// enc Encoder, ws WriteSyncer, enab LevelEnabler
-	// TODO 把level配置到其他地方
-	core := zapcore.NewCore(encoder, buffedLoggWS, zapcore.DebugLevel)
+
+	core := zapcore.NewCore(encoder, buffedLoggWS, level)
 	globalLogger = zap.New(
 		core,
 		zap.AddCallerSkip(1),
-		zap.Fields(zap.String("caller", globalServiceName)),
+		zap.Fields(zap.String("service", globalServiceName)),
 		zap.AddStacktrace(zapcore.DebugLevel),
 	)
 

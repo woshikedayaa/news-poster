@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UserServiceClient interface {
 	SimpleAuth(ctx context.Context, in *SimpleAuthRequest, opts ...grpc.CallOption) (*SimpleAuthResponse, error)
+	GetUserInfoFull(ctx context.Context, in *GetUserInfoFullRequest, opts ...grpc.CallOption) (*GetUserInfoFullResponse, error)
 }
 
 type userServiceClient struct {
@@ -42,11 +43,21 @@ func (c *userServiceClient) SimpleAuth(ctx context.Context, in *SimpleAuthReques
 	return out, nil
 }
 
+func (c *userServiceClient) GetUserInfoFull(ctx context.Context, in *GetUserInfoFullRequest, opts ...grpc.CallOption) (*GetUserInfoFullResponse, error) {
+	out := new(GetUserInfoFullResponse)
+	err := c.cc.Invoke(ctx, "/UserService/GetUserInfoFull", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UserServiceServer is the server API for UserService service.
 // All implementations must embed UnimplementedUserServiceServer
 // for forward compatibility
 type UserServiceServer interface {
 	SimpleAuth(context.Context, *SimpleAuthRequest) (*SimpleAuthResponse, error)
+	GetUserInfoFull(context.Context, *GetUserInfoFullRequest) (*GetUserInfoFullResponse, error)
 	mustEmbedUnimplementedUserServiceServer()
 }
 
@@ -56,6 +67,9 @@ type UnimplementedUserServiceServer struct {
 
 func (UnimplementedUserServiceServer) SimpleAuth(context.Context, *SimpleAuthRequest) (*SimpleAuthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SimpleAuth not implemented")
+}
+func (UnimplementedUserServiceServer) GetUserInfoFull(context.Context, *GetUserInfoFullRequest) (*GetUserInfoFullResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetUserInfoFull not implemented")
 }
 func (UnimplementedUserServiceServer) mustEmbedUnimplementedUserServiceServer() {}
 
@@ -88,6 +102,24 @@ func _UserService_SimpleAuth_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UserService_GetUserInfoFull_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetUserInfoFullRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UserServiceServer).GetUserInfoFull(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/UserService/GetUserInfoFull",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UserServiceServer).GetUserInfoFull(ctx, req.(*GetUserInfoFullRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UserService_ServiceDesc is the grpc.ServiceDesc for UserService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -98,6 +130,10 @@ var UserService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SimpleAuth",
 			Handler:    _UserService_SimpleAuth_Handler,
+		},
+		{
+			MethodName: "GetUserInfoFull",
+			Handler:    _UserService_GetUserInfoFull_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

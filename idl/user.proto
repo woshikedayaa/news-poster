@@ -2,11 +2,10 @@ syntax = "proto3";
 import 'time.proto';
 option go_package="./;user";
 
-
-
 service UserService{
   rpc SimpleAuth(SimpleAuthRequest)returns (SimpleAuthResponse);
   rpc GetUserInfoFull(GetUserInfoFullRequest)returns (GetUserInfoFullResponse);
+  rpc GetUserInfoSimple(GetUserInfoSimpleRequest) returns(GetUserInfoSimpleResponse);
 }
 
 message SimpleAuthRequest{
@@ -31,12 +30,23 @@ message GetUserInfoFullRequest{
 }
 
 message GetUserInfoFullResponse{
-  int64 userid = 1;
-  TimeModel ts = 2;
+  UserModel user = 1;
 }
 
 message GetUserInfoSimpleRequest{
-   int64 userid= 1;
-   TimeModel ts = 2;
+  int64 userid = 1;
 }
 
+message GetUserInfoSimpleResponse{
+  UserModel user = 1;
+}
+
+message UserModel{
+  int64 userid = 1;
+  string password = 2;
+  string nick_name = 3;
+  string email = 4;
+  int32 phone_zone = 5;
+  string phone_number = 6;
+  TimeModel ts = 7 ;
+}
