@@ -3,6 +3,7 @@ package etcd_pool
 import (
 	etcdc "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+	"time"
 )
 
 type Option func(pool *EtcdPool)
@@ -20,5 +21,11 @@ func WithLogger(logger *zap.Logger) Option {
 func WithEtcdClientConfig(config etcdc.Config) Option {
 	return func(pool *EtcdPool) {
 		pool.config = config
+	}
+}
+
+func WithMaxConnUseTime(d time.Duration) Option {
+	return func(pool *EtcdPool) {
+		pool
 	}
 }
