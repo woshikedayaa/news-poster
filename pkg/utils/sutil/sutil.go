@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"math"
 	"math/rand"
+	"net"
 	"time"
 )
 
@@ -12,7 +13,7 @@ var (
 	randS     = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
-// 效率不如 == 我: <- _ <-
+// 效率不如 ==  - _ -
 //// StringCompareByHash 先使用 xxHash处理字符串来比较hash 然后再一个一个比较
 //func StringCompareByHash(v1, v2 string) bool {
 //	if len(v1) != len(v2) {
@@ -72,4 +73,12 @@ func GenerateRandomString(length int) string {
 	}
 
 	return ""
+}
+
+// CheckAddrValid 这个函数检查一个地址是否符合规则
+// 只检查原 ipv4 地址 不处理域名相关
+// e.g. 1.1.1.1 -> true  1.2.3 -> false 1.2.3.4:8888 -> true
+func CheckAddrValid(s string) bool {
+	_, err := net.ResolveTCPAddr("tcp", s)
+	return err == nil
 }
