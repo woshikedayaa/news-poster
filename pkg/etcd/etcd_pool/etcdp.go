@@ -1,6 +1,7 @@
 package etcd_pool
 
 import (
+	"errors"
 	"github.com/woshikedayaa/news-poster/pkg/utils/structutil"
 	etcdc "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -14,13 +15,14 @@ var defaultEmptyPool = &EtcdPool{
 	minConn:     10,
 	minIdleConn: 5,
 	conn:        nil,
-	logger:      nil,
+	logger:      zap.NewNop(),
 	config:      etcdc.Config{Endpoints: []string{"127.0.0.1:2379"}},
 }
 
 type EtcdClientWrapper struct {
 	*etcdc.Client
 	wrapperID int // index
+	lastUsed  time.Time
 	isUsed    bool
 	unWrapped bool
 }
@@ -50,15 +52,16 @@ func (e *EtcdClientWrapper) Release() {
 }
 
 type EtcdPool struct {
-	*sync.Mutex
+	*sync.RWMutex
 	// maxConnUseTime  一个链接最长使用时间
 	// 超过这个时间的链接将检查是否可用
 	// 如果不可用了就创建个新链接 同时抛弃这个链接
+	// 设置成-1 来表示没有超时检查
 	maxConnUseTime time.Duration
 	config         etcdc.Config // config etcd
-	maxConn        int          // 最大链接数
-	minConn        int          // 最小链接数
-	minIdleConn    int          // 最小空闲链接
+	maxConn        int          // maxConn 最大链接数
+	minConn        int          // minConn 最小链接数
+	minIdleConn    int          // minIdleConn 最小空闲链接
 	logger         *zap.Logger  // logger
 	conn           []*EtcdClientWrapper
 }
@@ -68,7 +71,7 @@ func (ep *EtcdPool) Clone() *EtcdPool {
 	// 这里赋值私有属性
 	// 如果后面有新的私有属性 需要来这里加入
 	dst := &EtcdPool{
-		Mutex:       ep.Mutex,
+		RWMutex:     ep.RWMutex,
 		maxConn:     ep.maxConn,
 		minConn:     ep.minConn,
 		minIdleConn: ep.minIdleConn,
@@ -106,6 +109,10 @@ func Create(options ...Option) (*EtcdPool, error) {
 	for _, option := range options {
 		option.apply(ep)
 	}
+	if ep.maxConn*ep.minConn*ep.minIdleConn == 0 {
+		return nil, errors.New("maxConn and minConn and minIdleConn can not be 0")
+	}
+
 	// 创建连接
 	for i := 0; i < max(ep.minConn, ep.minIdleConn); i++ {
 		c, err := NewEtcdClientWrapper(ep.config, i)

@@ -26,6 +26,24 @@ func WithEtcdClientConfig(config etcdc.Config) Option {
 
 func WithMaxConnUseTime(d time.Duration) Option {
 	return func(pool *EtcdPool) {
-		pool
+		pool.maxConnUseTime = d
+	}
+}
+
+func WithMaxConn(d int) Option {
+	return func(pool *EtcdPool) {
+		pool.maxConn = d
+	}
+}
+
+func WithMinConn(d int) Option {
+	return func(pool *EtcdPool) {
+		pool.minConn = d
+	}
+}
+
+func WithMinIdleConn(d int) Option {
+	return func(pool *EtcdPool) {
+		pool.minIdleConn = d
 	}
 }
