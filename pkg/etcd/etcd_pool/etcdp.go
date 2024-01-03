@@ -5,18 +5,65 @@ import (
 	"github.com/woshikedayaa/news-poster/pkg/utils/structutil"
 	etcdc "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
+	"io"
 	"sync"
 	"time"
 )
 
 var defaultEmptyPool = &EtcdPool{
-	Mutex:       new(sync.Mutex),
+	RWMutex:     new(sync.RWMutex),
 	maxConn:     25,
 	minConn:     10,
 	minIdleConn: 5,
 	conn:        nil,
 	logger:      zap.NewNop(),
 	config:      etcdc.Config{Endpoints: []string{"127.0.0.1:2379"}},
+}
+
+type Pool interface {
+	io.Closer
+	GetConn() *EtcdClientWrapper
+}
+
+type EtcdPool struct {
+	*sync.RWMutex
+	// maxConnUseTime  一个链接最长使用时间
+	// 超过这个时间的链接将检查是否可用
+	// 如果不可用了就创建个新链接 同时抛弃这个链接
+	// 设置成-1 来表示没有超时检查
+	maxConnUseTime time.Duration
+	config         etcdc.Config // config etcd
+	maxConn        int          // maxConn 最大链接数
+	minConn        int          // minConn 最小链接数
+	minIdleConn    int          // minIdleConn 最小空闲链接
+	logger         *zap.Logger  // logger
+	conn           []*EtcdClientWrapper
+}
+
+func (ep *EtcdPool) GetConn() (*EtcdClientWrapper, error) {
+	var tmp *EtcdClientWrapper
+	// 先查找有没有空闲的
+	for i := 0; i < len(ep.conn); i++ {
+		tmp = ep.conn[i]
+		if tmp.isUsed == false {
+			tmp.isUsed = true
+			return tmp, nil
+		}
+	}
+	cur := len(ep.conn)
+	// 没有找到空闲的 开始检查条件 是否达到最大上限
+	if cur < ep.maxConn {
+		// 没有达到 maxConn 创建新的链接
+		c, err := NewEtcdClientWrapper(ep.config, cur)
+		if err != nil {
+			return nil, err
+		}
+		ep.conn = append(ep.conn, c)
+		return c, nil
+	}
+
+	// 最后达到上限了 而且 也没空闲的 返回错误
+	return nil, errors.New("the connection pool for etcd is currently in use and has reached its maximum limit")
 }
 
 type EtcdClientWrapper struct {
@@ -42,6 +89,7 @@ func NewEtcdClientWrapper(cfg etcdc.Config, id int) (*EtcdClientWrapper, error) 
 	}, nil
 }
 
+// UnWrapper 解析出来原生的etcd的client 然后这个链接就不归连接池管理
 func (e *EtcdClientWrapper) UnWrapper() *etcdc.Client {
 	e.unWrapped = true
 	return e.Client
@@ -49,21 +97,6 @@ func (e *EtcdClientWrapper) UnWrapper() *etcdc.Client {
 
 func (e *EtcdClientWrapper) Release() {
 	e.isUsed = false
-}
-
-type EtcdPool struct {
-	*sync.RWMutex
-	// maxConnUseTime  一个链接最长使用时间
-	// 超过这个时间的链接将检查是否可用
-	// 如果不可用了就创建个新链接 同时抛弃这个链接
-	// 设置成-1 来表示没有超时检查
-	maxConnUseTime time.Duration
-	config         etcdc.Config // config etcd
-	maxConn        int          // maxConn 最大链接数
-	minConn        int          // minConn 最小链接数
-	minIdleConn    int          // minIdleConn 最小空闲链接
-	logger         *zap.Logger  // logger
-	conn           []*EtcdClientWrapper
 }
 
 // Clone 创建一个新的对象 其中 conn 不参与 clone

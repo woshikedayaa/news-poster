@@ -1,6 +1,7 @@
 package etcd_pool
 
 import (
+	etcdc "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"time"
 )
@@ -19,7 +20,7 @@ func statusChecker(pool *EtcdPool) {
 	for {
 		pool.RLock()
 		for _, c := range conn {
-			if c.unWrapped || checkStatus(c) || connTimeout(c, pool.maxConnUseTime) {
+			if c.unWrapped { // TODO 添加更多检查条件 完善容错
 				idx[I] = c.wrapperID
 				I++
 			}
@@ -32,7 +33,8 @@ func statusChecker(pool *EtcdPool) {
 		}
 		// 重置相关变量
 		pool.Lock()
-		err = handleCreateConn(conn, idx)
+		// 处理有问题的链接
+		err = handleCreateConn(conn, idx, &pool.config)
 		pool.Unlock()
 
 		if err != nil {
@@ -51,22 +53,22 @@ func statusChecker(pool *EtcdPool) {
 	}
 }
 
-func checkStatus(c *EtcdClientWrapper) bool {
+// handleCreateConn 这里处理需要处理的连接 直接覆盖（
+func handleCreateConn(conn []*EtcdClientWrapper, idx []int, cfg *etcdc.Config) error {
+	var (
+		v   = 0
+		c   *EtcdClientWrapper
+		err error
+	)
 
-}
-
-func connTimeout(c *EtcdClientWrapper, maxTime time.Duration) bool {
-	if maxTime < 0 {
-		return false
-	}
-	if c.isUsed && time.Now().Sub(c.lastUsed).Milliseconds() > int64(maxTime) {
-		return true
-	}
-	return false
-}
-
-func handleCreateConn(conn []*EtcdClientWrapper, idx []int) error {
 	for i := 0; i < len(idx) && idx[i] != -1; i++ {
-
+		v = idx[i]
+		c, err = NewEtcdClientWrapper(*cfg, v)
+		if err != nil {
+			return err
+		}
+		conn[v] = c
 	}
+
+	return nil
 }
