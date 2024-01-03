@@ -1,17 +1,14 @@
 package etcd
 
 import (
+	"github.com/woshikedayaa/news-poster/pkg/etcd/etcd_pool"
 	"go.etcd.io/etcd/client/v3"
 	"time"
 )
 
 // inits
 var (
-	globalConn = struct {
-		conn *clientv3.Client
-	}{
-		conn: nil,
-	}
+	globalConnPool *etcd_pool.EtcdPool
 
 	retryMax = 5 // 最大重试次数
 )
@@ -22,16 +19,16 @@ func mustRefreshConn() {
 	}
 }
 
-func getConn() *clientv3.Client {
+func getConn() *etcd_pool.EtcdClientWrapper {
 	// lazy
 	// double if check
-	if globalConn.conn == nil {
-		if globalConn.conn == nil {
+	if globalConnPool == nil {
+		if globalConnPool == nil {
 			mustRefreshConn()
 		}
 	}
 
-	return globalConn.conn
+	return globalConnPool.GetConn()
 }
 
 // RefreshConn
@@ -71,7 +68,7 @@ func RefreshConn() error {
 	if client == nil {
 		return err
 	}
-
-	globalConn.conn = client
+	// TODO
+	// globalConnPool.conn = client
 	return nil
 }

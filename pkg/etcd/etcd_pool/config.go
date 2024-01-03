@@ -24,15 +24,16 @@ func WithEtcdClientConfig(config etcdc.Config) Option {
 	}
 }
 
-func WithMaxConnUseTime(d time.Duration) Option {
+func WithMaxWaitTime(d time.Duration) Option {
 	return func(pool *EtcdPool) {
-		pool.maxConnUseTime = d
+		pool.maxWaitTime = d
 	}
 }
 
 func WithMaxConn(d int) Option {
 	return func(pool *EtcdPool) {
 		pool.maxConn = d
+		pool.freeChannel = make(chan *EtcdClientWrapper, d)
 	}
 }
 

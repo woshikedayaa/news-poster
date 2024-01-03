@@ -12,12 +12,14 @@ import (
 
 var defaultEmptyPool = &EtcdPool{
 	RWMutex:     new(sync.RWMutex),
+	maxWaitTime: 3 * time.Minute,
 	maxConn:     25,
 	minConn:     10,
 	minIdleConn: 5,
 	conn:        nil,
 	logger:      zap.NewNop(),
 	config:      etcdc.Config{Endpoints: []string{"127.0.0.1:2379"}},
+	freeChannel: make(chan *EtcdClientWrapper, 25),
 }
 
 type Pool interface {
@@ -27,76 +29,69 @@ type Pool interface {
 
 type EtcdPool struct {
 	*sync.RWMutex
-	// maxConnUseTime  一个链接最长使用时间
-	// 超过这个时间的链接将检查是否可用
-	// 如果不可用了就创建个新链接 同时抛弃这个链接
-	// 设置成-1 来表示没有超时检查
-	maxConnUseTime time.Duration
-	config         etcdc.Config // config etcd
-	maxConn        int          // maxConn 最大链接数
-	minConn        int          // minConn 最小链接数
-	minIdleConn    int          // minIdleConn 最小空闲链接
-	logger         *zap.Logger  // logger
-	conn           []*EtcdClientWrapper
+	// maxWaitTime
+	// 这个指的是在所有链接都被使用
+	// 且 len(conn) >= maxConn 的情况下 可以等待空闲链接的最大时间
+	// 超过这个时间的将 panic
+	maxWaitTime time.Duration
+	freeChannel chan *EtcdClientWrapper
+	config      etcdc.Config // config etcd
+	maxConn     int          // maxConn 最大链接数
+	minConn     int          // minConn 最小链接数
+	minIdleConn int          // minIdleConn 最小空闲链接
+	logger      *zap.Logger  // logger
+	conn        []*EtcdClientWrapper
 }
 
-func (ep *EtcdPool) GetConn() (*EtcdClientWrapper, error) {
-	var tmp *EtcdClientWrapper
+func (ep *EtcdPool) GetConn() *EtcdClientWrapper {
+	// catch
+	defer func() {
+		if e := recover(); e != nil {
+			if err, ok := e.(error); ok {
+				panic("error when get a etcd client err=" + err.Error())
+			}
+		}
+	}()
+
 	// 先查找有没有空闲的
-	for i := 0; i < len(ep.conn); i++ {
-		tmp = ep.conn[i]
-		if tmp.isUsed == false {
+	if len(ep.freeChannel) != 0 {
+		tmp, ok := <-ep.freeChannel
+		if ok && tmp != nil && !tmp.isUsed {
+			tmp.pushed = false
 			tmp.isUsed = true
-			return tmp, nil
+			return tmp
 		}
 	}
-	cur := len(ep.conn)
+
 	// 没有找到空闲的 开始检查条件 是否达到最大上限
+	ep.Lock()
+	cur := len(ep.conn)
 	if cur < ep.maxConn {
 		// 没有达到 maxConn 创建新的链接
 		c, err := NewEtcdClientWrapper(ep.config, cur)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
 		ep.conn = append(ep.conn, c)
-		return c, nil
+		c.isUsed = true
+		ep.Unlock()
+		return c
 	}
+	ep.Unlock()
 
-	// 最后达到上限了 而且 也没空闲的 返回错误
-	return nil, errors.New("the connection pool for etcd is currently in use and has reached its maximum limit")
-}
-
-type EtcdClientWrapper struct {
-	*etcdc.Client
-	wrapperID int // index
-	lastUsed  time.Time
-	isUsed    bool
-	unWrapped bool
-}
-
-func NewEtcdClientWrapper(cfg etcdc.Config, id int) (*EtcdClientWrapper, error) {
-	var err error
-	client, err := etcdc.New(cfg)
-	if err != nil {
-		return nil, err
+	// 最后达到上限了 而且 也没空闲的 就等待有空闲的
+	timer := time.NewTimer(ep.maxWaitTime)
+	for {
+		select {
+		case c, ok := <-ep.freeChannel:
+			if !ok {
+				panic(errors.New("EtcdPool.freeChannel has closed"))
+			}
+			return c
+		case <-timer.C:
+			panic(errors.New("EtcdPool.GetConn fail,timeout"))
+		}
 	}
-
-	return &EtcdClientWrapper{
-		Client:    client,
-		wrapperID: id,
-		isUsed:    false,
-		unWrapped: false,
-	}, nil
-}
-
-// UnWrapper 解析出来原生的etcd的client 然后这个链接就不归连接池管理
-func (e *EtcdClientWrapper) UnWrapper() *etcdc.Client {
-	e.unWrapped = true
-	return e.Client
-}
-
-func (e *EtcdClientWrapper) Release() {
-	e.isUsed = false
 }
 
 // Clone 创建一个新的对象 其中 conn 不参与 clone
@@ -108,8 +103,10 @@ func (ep *EtcdPool) Clone() *EtcdPool {
 		maxConn:     ep.maxConn,
 		minConn:     ep.minConn,
 		minIdleConn: ep.minIdleConn,
+		maxWaitTime: ep.maxWaitTime,
 		config:      ep.config,
 		logger:      ep.logger,
+		freeChannel: make(chan *EtcdClientWrapper, ep.maxConn),
 		// conn 不参与 clone
 		conn: nil,
 	}
@@ -135,6 +132,13 @@ func (ep *EtcdPool) Close() error {
 	return nil
 }
 
+func (ep *EtcdPool) pushChannel(c *EtcdClientWrapper) {
+	if !c.pushed && !c.isUsed {
+		c.pushed = true
+		ep.freeChannel <- c
+	}
+}
+
 func Create(options ...Option) (*EtcdPool, error) {
 	var err error = nil
 	ep := defaultEmptyPool.Clone()
@@ -142,8 +146,15 @@ func Create(options ...Option) (*EtcdPool, error) {
 	for _, option := range options {
 		option.apply(ep)
 	}
+
 	if ep.maxConn*ep.minConn*ep.minIdleConn == 0 {
 		return nil, errors.New("maxConn and minConn and minIdleConn can not be 0")
+	}
+	if ep.minConn < ep.minIdleConn {
+		return nil, errors.New("minConn must bigger than minIdleConn")
+	}
+	if ep.maxConn < ep.minConn {
+		return nil, errors.New("maxConn must bigger than minConn ")
 	}
 
 	// 创建连接
@@ -153,9 +164,12 @@ func Create(options ...Option) (*EtcdPool, error) {
 			return nil, err
 		}
 		ep.conn = append(ep.conn, c)
+
+		c.pushed = true
+		ep.freeChannel <- c
 	}
-	// 开启检查
-	go statusChecker(ep)
+	// 开启守护协程
+	go poolDaemon(ep)
 	// ...
 	return ep, err
 }

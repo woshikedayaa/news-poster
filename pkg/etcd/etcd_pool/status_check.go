@@ -1,51 +1,17 @@
 package etcd_pool
 
 import (
-	etcdc "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"time"
 )
 
-// statusChecker 用来检查连接池内的链接
-// 检查一个链接是否已经 Unwrapped -> 创建一个新的抛弃原来的
-// 检查一个链接是否还可以正常使用 -> 不可用就抛弃 -> checkStatus
-// 检查一个链接是否超过了使用的超时 -> 抛弃 -> connTimeout
-func statusChecker(pool *EtcdPool) {
-	var err error
-	conn := pool.conn
-	ticker := time.NewTicker(time.Second)
-	idx := make([]int, pool.maxConn)
-	I := 0
-
+// poolDaemon 用来检查连接池内的链接
+// 同时来维护freeChannel 保证其中有空闲链接
+func poolDaemon(pool *EtcdPool) {
+	ticker := time.NewTicker(10 * time.Millisecond)
 	for {
-		pool.RLock()
-		for _, c := range conn {
-			if c.unWrapped { // TODO 添加更多检查条件 完善容错
-				idx[I] = c.wrapperID
-				I++
-			}
-		}
-		pool.RUnlock()
-
-		// 设置一个flag表示结束
-		if I != pool.maxConn {
-			idx[I] = -1
-		}
-		// 重置相关变量
-		pool.Lock()
-		// 处理有问题的链接
-		err = handleCreateConn(conn, idx, &pool.config)
-		pool.Unlock()
-
-		if err != nil {
-			// 这里不sync了 交给客户端去
-			pool.logger.Error("error when handleCreateConn", zap.Error(err))
-		}
-
-		for i := 0; i < I; i++ {
-			idx[i] = 0
-		}
-		I = 0
+		pool.checkProblemConn()
+		pool.pushFreeChannel()
 		// 限速
 		select {
 		case <-ticker.C:
@@ -53,17 +19,61 @@ func statusChecker(pool *EtcdPool) {
 	}
 }
 
+func (ep *EtcdPool) pushFreeChannel() {
+	conn := ep.conn
+	ep.Lock()
+	defer ep.Unlock()
+
+	for _, cli := range conn {
+		ep.pushChannel(cli)
+	}
+}
+
+// checkProblemConn
+// 1-检查一个链接是否已经 Unwrapped -> 创建一个新的抛弃原来的
+func (ep *EtcdPool) checkProblemConn() {
+	conn := ep.conn
+	I := 0
+	idx := make([]int, ep.maxConn)
+	ep.RLock()
+	for _, c := range conn {
+		if c.unWrapped { // TODO 添加更多检查条件 完善容错
+			idx[I] = c.wrapperID
+			I++
+		}
+
+	}
+	ep.RUnlock()
+
+	// 设置一个flag表示结束
+	if I != ep.maxConn {
+		idx[I] = -1
+	}
+	// 重置相关变量
+	ep.Lock()
+	// 处理有问题的链接
+	err := handleCreateConn(ep, idx)
+	ep.Unlock()
+
+	if err != nil {
+		// 这里不sync了 交给客户端去
+		ep.logger.Error("error when handleCreateConn", zap.Error(err))
+	}
+}
+
 // handleCreateConn 这里处理需要处理的连接 直接覆盖（
-func handleCreateConn(conn []*EtcdClientWrapper, idx []int, cfg *etcdc.Config) error {
+func handleCreateConn(ep *EtcdPool, idx []int) error {
+
 	var (
-		v   = 0
-		c   *EtcdClientWrapper
-		err error
+		v    = 0
+		c    *EtcdClientWrapper
+		err  error
+		conn = ep.conn
 	)
 
 	for i := 0; i < len(idx) && idx[i] != -1; i++ {
 		v = idx[i]
-		c, err = NewEtcdClientWrapper(*cfg, v)
+		c, err = NewEtcdClientWrapper(ep.config, v)
 		if err != nil {
 			return err
 		}
